@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skills Wise | QR Editor</title>
+    <!-- Incluye Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 
+      NUEVA BIBLIOTECA: qr-code-styling
+      Esta biblioteca es más potente y permite añadir logos.
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Usamos Inter como la fuente principal */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilos para el contenedor del QR */
+        #qrcode-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            /* El canvas generado tendrá su propio borde redondeado */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md mx-auto">
+        
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">
+            Skills Wise | QR Editor
+        </h1>
+
+        <div class="space-y-4">
+            <!-- Campo de entrada de texto -->
+            <div>
+                <label for="text-input" class="block text-sm font-medium text-gray-700 mb-1">
+                    URL Mp3 Track
+                </label>
+                <input type="text" id="text-input" 
+                       class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                       placeholder="https:://.../track.mp3">
+            </div>
+
+            <!-- NUEVO: Cuadro de selección de Logo -->
+            <div>
+                <label for="logo-select" class="block text-sm font-medium text-gray-700 mb-1">
+                    Select (MCER)
+                </label>
+                <select id="logo-select"
+                        class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition bg-white">
+                    <option value="none">Choose Level</option>
+                    <option value="S">Skills Wise S</option>
+                    <option value="A1">Skills Wise A1</option>
+                    <option value="A2">Skills Wise A2</option>
+                    <option value="B1">Skills Wise B1</option>
+                    <option value="B2">Skills Wise B2</option>
+                    <option value="C1">Skills Wise C1</option>
+                    <option value="C2">Skills Wise C2</option>
+                </select>
+            </div>
+
+            <!-- NUEVO: Campo de número de Track -->
+            <div>
+                <label for="track-input" class="block text-sm font-medium text-gray-700 mb-1">
+                    Track number 1-100
+                </label>
+                <input type="number" id="track-input" 
+                       min="1" max="100"
+                       class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                       placeholder="e.g. 25">
+            </div>
+
+            <!-- Botón para generar -->
+            <button id="generate-btn" 
+                    class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 shadow-md">
+                Generate QR Code
+            </button>
+        </div>
+
+        <!-- Contenedor donde aparecerá el código QR -->
+        <div id="qrcode-container" 
+             class="mt-6 border-2 border-dashed border-gray-300 rounded-lg h-64 w-64 mx-auto bg-gray-50 flex items-center justify-center">
+            <p id="qr-placeholder" class="text-gray-400 text-center p-4">
+                QR Code here
+            </p>
+        </div>
+
+        <!-- 
+          Botón de descarga (oculto inicialmente)
+          Cambiado de <a> a <button> para mejor manejo con la nueva biblioteca
+        -->
+        <button id="download-btn" 
+           class="hidden w-full bg-green-600 text-white p-3 rounded-lg font-semibold hover:bg-green-700 transition-colors duration-200 shadow-md text-center mt-4">
+            Download QR
+        </button>
+
+        <!-- NUEVO: Pie de página -->
+        <p class="text-center text-gray-500 text-xs mt-6">
+            Developed by Hugo Luque
+        </p>
+
+    </div>
+
+    <script>
+        // Referencias a los elementos del DOM
+        const textInput = document.getElementById('text-input');
+        const generateBtn = document.getElementById('generate-btn');
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        const qrPlaceholder = document.getElementById('qr-placeholder');
+        const logoSelect = document.getElementById('logo-select');
+        const trackInput = document.getElementById('track-input'); // <-- AÑADIDO
+        const downloadBtn = document.getElementById('download-btn');
+
+        // Instancia de la nueva biblioteca (se mantendrá actualizada)
+        let qrCodeStylingInstance = null;
+
+        // --- IMPORTANTE ---
+        // REESTRUCTURADO para manejar texto dinámico
+        // Mapeo de las opciones a detalles del logo
+        // El color ya no se usa, se ha fijado a negro por solicitud.
+        const logoDetails = {
+            "S":  { text: "S" },
+            "A1": { text: "A1" },
+            "A2": { text: "A2" },
+            "B1": { text: "B1" },
+            "B2": { text: "B2" },
+            "C1": { text: "C1" },
+            "C2": { text: "C2" }
+        };
+
+
+        /**
+         * Función para generar el código QR (ACTUALIZADA)
+         */
+        function generarQR() {
+            const texto = textInput.value.trim();
+            const logoKey = logoSelect.value;
+            const trackNumber = trackInput.value.trim(); // <-- AÑADIDO
+            
+            let logoUrl = ""; // URL del logo final
+
+            if (!texto) {
+                console.log("El campo de texto está vacío.");
+                return;
+            }
+
+            // --- Lógica de Logo Dinámico ---
+            if (logoKey !== "none") {
+                const details = logoDetails[logoKey];
+                let logoText = details.text;
+
+                // Añadir número de track si es válido (entre 1 y 100)
+                const trackNumValue = parseInt(trackNumber, 10);
+                if (trackNumValue >= 1 && trackNumValue <= 100) {
+                    // CAMBIO: Usamos un salto de línea "\n" en lugar de un espacio
+                    logoText = `${details.text}\n${trackNumValue}`;
+                }
+
+                // URL-encode para espacios y saltos de línea (ej. "S\n25" -> "S%0A25")
+                const encodedLogoText = encodeURIComponent(logoText);
+                
+                // --- CAMBIO ---
+                // 1. Fondo fijado a '000000' (negro).
+                // 2. Tamaño aumentado a 200x200 para dar más espacio al texto.
+                // Nota: El servicio placehold.co no permite dos tamaños de fuente
+                // distintos en la misma imagen. El texto se escala para ajustarse.
+                logoUrl = `https://placehold.co/200x200/000000/FFFFFF?text=${encodedLogoText}`;
+            }
+            // --- Fin Lógica de Logo ---
+
+            // Limpiar el contenedor (quita el placeholder o el QR anterior)
+            qrcodeContainer.innerHTML = '';
+            
+            // Ocultar el botón de descarga
+            downloadBtn.classList.add('hidden');
+
+            try {
+                // Definir las opciones para qr-code-styling
+                const options = {
+                    width: 256,
+                    height: 256,
+                    type: "canvas", // Usamos canvas para mejor calidad y descarga
+                    data: texto,
+                    image: logoUrl, // ¡Aquí se añade el logo! (Ahora es dinámico)
+                    dotsOptions: {
+                        color: "#000000",
+                        type: "rounded" // Puntos redondeados
+                    },
+                    backgroundOptions: {
+                        color: "#ffffff",
+                    },
+                    imageOptions: {
+                        crossOrigin: "anonymous", // Necesario para descargar la imagen
+                        margin: 5,
+                        imageSize: 0.3 // El logo ocupa el 30% del QR
+                    },
+                    qrOptions: {
+                        correctLevel: "H" // Nivel alto de corrección (bueno para logos)
+                    }
+                };
+
+                // Crear la instancia del QR
+                qrCodeStylingInstance = new QRCodeStyling(options);
+                
+                // Añadir el canvas del QR al contenedor
+                qrCodeStylingInstance.append(qrcodeContainer);
+                
+                // Mostrar el botón de descarga
+                downloadBtn.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error al generar el código QR:", error);
+                qrcodeContainer.appendChild(qrPlaceholder); // Mostrar placeholder si falla
+            }
+        }
+
+        /**
+         * Función para descargar el código QR (NUEVA)
+         */
+        async function descargarQR() {
+            if (!qrCodeStylingInstance) return;
+
+            try {
+                // Usamos el método .download() de la biblioteca
+                await qrCodeStylingInstance.download({
+                    name: "codigo-qr-skillwise",
+                    extension: "png"
+                });
+            } catch (error) {
+                console.error("Error al descargar el QR:", error);
+            }
+        }
+
+        // --- Event Listeners ---
+
+        // Al hacer clic en el botón "Generar"
+        generateBtn.addEventListener('click', generarQR);
+
+        // Al hacer clic en el botón "Descargar"
+        downloadBtn.addEventListener('click', descargarQR);
+
+        // Opcional: Generar también al presionar "Enter"
+        textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                generarQR();
+            }
+        });
+
+    </script>
+
+</body>
+</html>
